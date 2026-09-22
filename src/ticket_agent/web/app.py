@@ -229,6 +229,56 @@ def _metrics() -> dict:
     }
 
 
+def _systems() -> list[dict]:
+    """The systems the agent works across, and what each one really is.
+
+    Jira and Confluence are the systems this models. What is actually behind
+    them here is a local SQLite store and a folder of markdown, and the
+    dashboard says so on every row. Labelling a stand-in "connected" would
+    misrepresent the system to anyone reading it -- the substitution is a
+    legitimate design decision, and it survives being stated plainly.
+    """
+    tickets = store.list_tickets(limit=1000)
+    untriaged = sum(
+        1 for t in tickets if t.status is TicketStatus.OPEN and not t.triaged
+    )
+    sops = store.list_sops()
+    github_repo = os.getenv("GITHUB_REPO", "").strip()
+
+    return [
+        {
+            "key": "jira",
+            "name": "Jira",
+            "role": "Where tickets come from",
+            "state": "live" if github_repo else "stand-in",
+            "backing": (
+                f"GitHub Issues · {github_repo}"
+                if github_repo
+                else "Local store · SQLite"
+            ),
+            "figures": [
+                (len(tickets), "tickets"),
+                (untriaged, "not yet looked at"),
+            ],
+            "href": "/tickets",
+            "action": "Browse tickets",
+        },
+        {
+            "key": "confluence",
+            "name": "Confluence",
+            "role": "Where the procedures live",
+            "state": "stand-in",
+            "backing": "SOP pack · markdown in data/seed/sops",
+            "figures": [
+                (len(sops), "procedures"),
+                (sum(s.revision - 1 for s in sops), "revisions by the agent"),
+            ],
+            "href": "/sops",
+            "action": "Browse procedures",
+        },
+    ]
+
+
 def _ctx(request: Request, **extra) -> dict:
     _, is_demo = _make_client()
     base = {
@@ -259,7 +309,8 @@ def healthz() -> JSONResponse:
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     return templates.TemplateResponse(
-        request, "dashboard.html", _ctx(request, m=_metrics(), page="dashboard")
+        request, "dashboard.html",
+        _ctx(request, m=_metrics(), systems=_systems(), page="dashboard"),
     )
 
 
@@ -456,7 +507,7 @@ def run(command: str, limit: int = Form(5)):
 def status_partial(request: Request):
     """Polled by HTMX so an activated agent is visibly working."""
     return templates.TemplateResponse(
-        request, "partials/status.html", _ctx(request, m=_metrics())
+        request, "partials/status.html", _ctx(request, m=_metrics(), systems=_systems())
     )
 
 

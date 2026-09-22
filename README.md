@@ -34,8 +34,10 @@ page says so. Add a key to `.env` to run the actual agent.
 
 ## A 60-second walkthrough
 
-1. **Overview** — press **Start agent**. The status strip goes live and the
-   queue starts filling. The agent is now working on its own.
+1. **Overview** — three panels: **Jira** (where tickets come from),
+   **Confluence** (where the procedures live), and the **triage agent**.
+   Press **Activate**. The agent card turns green and starts counting; the
+   queue fills on its own.
 2. **Review queue** — open a row with a red spine. It carries a
    `HOLD: HUMAN REVIEW` stamp and says which of the four conditions stopped
    it.

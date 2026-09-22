@@ -14,6 +14,59 @@
   {% include "partials/status.html" %}
 </div>
 
+<section class="systems">
+  {% for s in systems %}
+  <article class="system">
+    <header>
+      <h3>{{ s.name }}</h3>
+      <span class="state {{ s.state }}">{{ 'Connected' if s.state == 'live' else 'Stand-in' }}</span>
+    </header>
+    <p class="role">{{ s.role }}</p>
+    <p class="backing">{{ s.backing }}</p>
+    <div class="figures">
+      {% for value, label in s.figures %}
+      <span><b class="num">{{ value }}</b> {{ label }}</span>
+      {% endfor %}
+    </div>
+    <a class="through" href="{{ s.href }}">{{ s.action }}</a>
+  </article>
+  {% endfor %}
+
+  <article class="system agent {% if worker.running %}on{% else %}off{% endif %}">
+    <header>
+      <h3>Triage agent</h3>
+      <span class="state {{ 'live' if worker.running else 'idle' }}">
+        {{ 'Active' if worker.running else 'Inactive' }}
+      </span>
+    </header>
+    <p class="role">Reads Jira, checks Confluence, drafts the reply</p>
+    <p class="backing">
+      {% if worker.running %}
+        Picking up a ticket every {{ worker.interval }}s
+      {% else %}
+        Not picking anything up
+      {% endif %}
+    </p>
+    <div class="figures">
+      <span><b class="num">{{ worker.processed }}</b> proposed this session</span>
+      <span><b class="num">{{ queue_count }}</b> waiting for you</span>
+    </div>
+    {% if worker.running %}
+    <form method="post" action="/run/stop"><button class="danger">Deactivate</button></form>
+    {% else %}
+    <form method="post" action="/run/start"><button>Activate</button></form>
+    {% endif %}
+  </article>
+</section>
+
+<p class="note" style="margin:-8px 0 26px; max-width:74ch">
+  Jira and Confluence are what this models. Behind them here are a local
+  ticket store and a folder of markdown — labelled stand-in rather than
+  connected, because saying otherwise would misdescribe what you are looking
+  at. Set <code>GITHUB_REPO</code> and the ticket side switches to a real
+  issue tracker.
+</p>
+
 <div class="board">
   <div class="held">
     <span class="figure">{{ m.held }}</span>
@@ -36,13 +89,8 @@
 <div class="split">
   <section>
     <div class="panel">
-      <h2>Run the agent</h2>
+      <h2>Run one pass by hand</h2>
       <div class="controls-grid">
-        {% if worker.running %}
-        <form method="post" action="/run/stop"><button class="danger">Stop agent</button></form>
-        {% else %}
-        <form method="post" action="/run/start"><button>Start agent</button></form>
-        {% endif %}
         <form method="post" action="/run/triage">
           <input type="hidden" name="limit" value="5">
           <button class="ghost">Triage next 5</button>
@@ -54,9 +102,9 @@
         <form method="post" action="/run/seed"><button class="ghost">Reset data</button></form>
       </div>
       <p class="note">
-        Started, the agent polls for new tickets and keeps filling this queue
-        on its own. It can only add proposals — approving and sending stay
-        with you.
+        For when you want one batch rather than a running agent. Either way
+        the result is the same: proposals in the queue, nothing sent.
+        Approving stays with you.
       </p>
     </div>
 

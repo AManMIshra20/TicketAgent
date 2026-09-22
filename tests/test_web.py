@@ -195,6 +195,47 @@ def test_run_sop_queues_held_sop_proposals(web):
     assert len(store.list_sops()) == before, "an SOP was published without approval"
 
 
+def test_systems_board_shows_jira_confluence_and_the_agent(web):
+    app_module, client = web
+    page = client.get("/").text
+    assert "Jira" in page
+    assert "Confluence" in page
+    assert "Triage agent" in page
+    assert "Activate" in page
+
+
+def test_stand_ins_are_not_described_as_connected(web):
+    """Calling a local store 'Connected' would misdescribe the system to
+    whoever is reading the dashboard."""
+    app_module, _ = web
+    systems = app_module._systems()
+    by_key = {s["key"]: s for s in systems}
+
+    assert by_key["jira"]["state"] == "stand-in"
+    assert by_key["confluence"]["state"] == "stand-in"
+    assert "SQLite" in by_key["jira"]["backing"]
+
+
+def test_jira_reports_live_when_a_real_repo_is_configured(web, monkeypatch):
+    app_module, _ = web
+    monkeypatch.setenv("GITHUB_REPO", "someone/their-desk")
+    jira = next(s for s in app_module._systems() if s["key"] == "jira")
+    assert jira["state"] == "live"
+    assert "someone/their-desk" in jira["backing"]
+
+
+def test_the_agent_card_reports_its_real_state(web):
+    app_module, client = web
+    assert "Inactive" in client.get("/").text
+
+    client.post("/run/start", follow_redirects=False)
+    page = client.get("/").text
+    assert "Active" in page and "Deactivate" in page
+
+    client.post("/run/stop", follow_redirects=False)
+    assert "Activate" in client.get("/").text
+
+
 def test_start_and_stop_the_worker(web):
     app_module, client = web
     client.post("/run/start", follow_redirects=False)
