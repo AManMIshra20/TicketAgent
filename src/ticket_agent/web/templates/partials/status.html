@@ -1,0 +1,19 @@
+<div class="status-strip" id="status" hx-get="/partials/status" hx-trigger="every 4s" hx-swap="outerHTML">
+  <span class="pulse {% if worker.running %}on{% endif %}"></span>
+  <span>
+    {% if worker.running %}
+      <b>Agent running.</b> Polling every {{ worker.interval }}s.
+    {% else %}
+      <b>Agent stopped.</b> Nothing is being picked up.
+    {% endif %}
+  </span>
+  <span>Proposed this session: <span class="num">{{ worker.processed }}</span></span>
+  <span>
+    Last poll:
+    <span class="num">{% if worker.last_poll %}{{ worker.last_poll.strftime('%H:%M:%S') }}{% else %}—{% endif %}</span>
+  </span>
+  <span>Waiting for review: <span class="num">{{ queue_count }}</span></span>
+  {% if worker.errors %}
+  <span class="errors">{{ worker.errors[-1] }}</span>
+  {% endif %}
+</div>

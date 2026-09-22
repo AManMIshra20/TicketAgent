@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Tickets{% endblock %}
+
+{% block body %}
+<h1>Tickets</h1>
+<p class="lede">
+  The synthetic Meridian queue. Generated from a fixed seed, including its
+  defects: missing requesters, mixed date formats, duplicates, mislabelled
+  categories and empty bodies.
+</p>
+
+<div class="filters">
+  <a href="/tickets?status=open" aria-current="{{ 'true' if status == 'open' else 'false' }}">Open</a>
+  <a href="/tickets?status=resolved" aria-current="{{ 'true' if status == 'resolved' else 'false' }}">Resolved</a>
+  <a href="/tickets?status=all" aria-current="{{ 'true' if status == 'all' else 'false' }}">All</a>
+</div>
+
+<div class="ledger">
+  {% for t in tickets %}
+  <a class="row {% if t.status.value == 'resolved' %}is-done{% elif t.triaged %}is-ready{% endif %}" href="/tickets/{{ t.ticket_id }}">
+    <span class="spine"></span>
+    <span class="id">{{ t.ticket_id }}</span>
+    <span class="subject">
+      {{ t.title }}
+      <span class="why">
+        {{ t.category.value.replace('_', ' ') }} ·
+        {{ t.severity.value }}
+        {% if not t.requester_id %} · <span class="tag hold">requester missing</span>{% endif %}
+        {% if not t.body %} · <span class="tag hold">no description</span>{% endif %}
+      </span>
+    </span>
+    <span class="meta">{{ t.created_at.strftime('%d %b') }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

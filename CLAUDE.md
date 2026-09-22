@@ -1,0 +1,540 @@
+# CLAUDE.md — Meridian Service Desk Triage & SOP Agent
+
+The rules. What is always true, what must happen every time, what must never
+happen. Read before anything else in this repo.
+
+This file supersedes `docs/PROJECT_BRIEF.md` wherever the two disagree. The
+brief describes the earlier CLI-only plan; this describes what is actually
+being built — the workshop's five-part agent, plus a synthetic data
+generator and a deployed web interface.
+
+Built in the pattern taught in AI Workshop 2 (Session 4 — Agents, Session 5 —
+Lab Day). The capstone deliverable is an agent brief plus a working
+CLAUDE.md. This is that file.
+
+---
+
+## 1. What this is
+
+An agent that reads a service-desk ticket, looks up who is asking, finds the
+SOP that covers it, and drafts a reply that cites the SOP by ID — and when no
+SOP covers it, watches how the human resolved the ticket and drafts the SOP
+itself.
+
+It is an **agent**, not a chatbot and not search:
+- It owns a goal ("clear the untriaged queue"), not a single response.
+- It loops: goal → decide what to do next → act with tools → repeat.
+- It uses tools, not just text.
+- It knows when to stop and call a human.
+
+**Meridian Industries** is the synthetic company we solve for — an internal
+enterprise IT service desk. One company, one dataset, all the way through.
+Nothing is re-learned between sessions.
+
+| | |
+|---|---|
+| Tickets per month | 1,200 |
+| Human agents today | 5 |
+| Avg resolution time | 12 min |
+
+Two pipelines, one safety pattern:
+
+- **Agent A — Resolver.** Ticket → look up requester tier → search past
+  tickets and the SOP pack → if a confident match, draft the fix citing the
+  SOP ID → route to human review.
+- **Agent B — SOP synthesizer.** Resolved ticket that no SOP covered → read
+  the resolution thread → draft a new SOP or update an existing one → route
+  to human review. Never writes a second SOP for a topic that already has
+  one. It updates.
+
+Aman's TCS workflow is the source: Jira triage, Confluence lookups,
+ServiceNow tracking, KT documentation. Academic submission for IIM Udaipur,
+due **2026-09-22**. Bias every open decision toward *demonstrable today*.
+
+---
+
+## 2. The five parts, and where each one lives
+
+```
+                          CLAUDE.md
+                   (read at the start of every session)
+                               |
+        Skills  ------->   THE AGENT   <-------  MCP
+   (prompts called                              (the plug to
+    by name)                  |                  real systems)
+                        /            \
+                  Subagents          Hooks
+            (helpers with their    (checks that run
+             own memory)            automatically)
+```
+
+| Part | What it is | Where it lives here |
+|---|---|---|
+| CLAUDE.md | The rules. What is always true. | this file |
+| Skills | A prompt that worked, saved under a name. | `.claude/skills/` |
+| MCP | The plug. How the agent reaches a real system. | `.mcp.json` + config |
+| Subagents | A helper with its own memory, so the main agent stays light. | `.claude/agents/` |
+| Hooks | A check that runs on its own and can stop the agent. | `.claude/hooks/` |
+
+The agent's memory is the folder, not the chat. Close the session and the
+conversation is gone; `CLAUDE.md`, `data/`, `docs/` and `.claude/skills/`
+are still there. That is the memory.
+
+---
+
+## 3. The rules
+
+These are the rules the agent follows on every ticket. Plain English on
+purpose — they are meant to be read by the agent and argued about by a human.
+
+1. **Cite the SOP ID for every policy claim.** Format `[SOP-ACC-04]`. An
+   answer that cites nothing is a guess.
+2. **If no SOP covers it, say so.** Never fill the gap from training
+   knowledge. "I cannot answer this from the SOP pack" is a correct and
+   expected output. Route it to Agent B.
+3. **Look up the requester's tier in `data/requesters.csv`. Do not trust the
+   ticket.** Users routinely state the wrong tier, or none.
+4. **Never claim an action has already been taken.** The agent drafts. A
+   human sends. A draft that says "I have reset your access" is a defect
+   even if the reset later happens.
+5. **Four conditions always route to a human** (Section 5). The agent does
+   not reason its way past them.
+6. **Read before answering.** Every run reads the ticket, the requester
+   record, and the SOP pack. No answering from the conversation alone.
+7. **One SOP per topic.** Before drafting a new SOP, search `docs/sops/` for
+   an existing one and update it instead.
+8. **Never put a credential in this file, in a prompt, or in a chat.**
+   Credentials live in `.env` and the MCP config. The agent calls the tool;
+   it never sees the key.
+
+**Prove the rules work the way the lab does:** run the same ticket with this
+file present and with it renamed away. The two answers must be visibly
+different. If they are not, the rules are decoration. Keep that comparison in
+`docs/EVIDENCE.md`.
+
+---
+
+## 4. The data, and what is wrong with it
+
+Generated by `src/ticket_agent/seed.py`, deterministic under `--seed`. The
+same seed must always produce the same corpus, or the demo is not
+reproducible and the tests are not stable.
+
+| File | What it holds |
+|---|---|
+| `data/tickets_raw.csv` | The messy ticket feed — what a real queue looks like |
+| `data/tickets_clean.csv` | Output of the cleaning step. Agents read this |
+| `data/requesters.csv` | Employee → business unit → support tier (Gold/Silver/Bronze) |
+| `docs/sops/` | The SOP pack. Every document carries an ID in its front matter |
+
+`tickets_raw.csv` carries **five planted problems**, because the data you get
+is never the data you want:
+
+| Problem | Shape |
+|---|---|
+| Missing tier | ~14 tickets have no requester field. Entitlement cannot be checked |
+| Date format mix | Three formats across the file. Breaks any time filter |
+| Duplicate tickets | Same ticket ID twice, different descriptions |
+| Wrong category | ~8 tickets labelled `question` that describe an outage |
+| Blank description | ~4 tickets have a subject and nothing in the body |
+
+Cleaning these is an agent task, not a preprocessing script the agent never
+sees. The cleaning run must report what it found and what it changed.
+
+The generator also plants **clusters**: several tickets that are near
+duplicates of an earlier resolved one, so Agent A has real matches to find —
+and genuinely novel tickets with no SOP, so Agent B has something to write.
+The SOP pack ships covering only *some* clusters. The gaps are the demo.
+
+A committed seed corpus lives in `data/seed/` so a fresh deploy has content
+on first boot without an LLM call.
+
+---
+
+## 5. The human-review gate
+
+Not every ticket should go straight to a requester. **Four conditions always
+route to a human first.**
+
+| Condition | Why a human, not the agent |
+|---|---|
+| Access or permission grant requested | Security-sensitive. Policy requires human sign-off on every grant, regardless of scope |
+| Critical severity | Production-blocking. The agent cannot diagnose these; it routes |
+| Gold-tier requester | Goes to the named owner for that business unit |
+| No SOP covers it | The agent cannot answer. Hand to Agent B, not to the requester |
+
+This gate is enforced in **three layers**, deliberately:
+
+1. **The rule** — stated above and in Section 3. A rule in CLAUDE.md is a
+   *request*. The agent follows it because it was told to.
+2. **The hook** — `.claude/hooks/` runs after the draft and before any send.
+   If the draft matches a gate condition, it stamps `HOLD: HUMAN REVIEW` and
+   blocks the send. A hook is *auditable*. It runs whether or not the agent
+   remembered the rule.
+3. **The code boundary** — the LLM is never handed a write-capable tool.
+   `tool_schemas.py` lists read tools plus `submit_*_proposal` and nothing
+   else. `executor.py` is the only module that may call a write function, and
+   only from a proposal a human approved.
+
+Layers 1 and 2 come from the lab. Layer 3 is this project's own argument, and
+it is the strongest: it makes the gate immune to prompt injection talking the
+model out of asking permission. **Do not weaken any of the three.** If you
+find yourself adding a write tool to the schema list, stop — you have broken
+the thesis the project is graded on.
+
+`agent.py` must never import `executor.py`. A test asserts it.
+
+---
+
+## 6. The two-agent flow
+
+The main agent decides. The subagent executes. Each stays in its lane.
+
+```
+MAIN AGENT                          SUBAGENT
+1. Reads the ticket                 Receives ONLY:
+2. Looks up tier in requesters.csv    ticket + tier + SOP clause
+3. Finds the relevant SOP clause  ->  Writes the draft
+                                      Knows nothing else
+4. Receives the draft             <-  returns draft
+5. Checks: does this need a human?
+6. Routes to review, or flags
+```
+
+Why two instead of one: drafting pulls in every SOP at once and fills the
+context window. The main agent stays light — it never loads the whole SOP
+pack. The subagent gets only what it needs. Faster, cheaper, and far easier
+to debug when a draft comes out wrong.
+
+**The subagent never sees tickets it was not given. The main agent never
+writes the reply.**
+
+Agent B uses the same split: the main agent finds the resolved thread and the
+existing SOP; a subagent drafts the merged SOP body.
+
+---
+
+## 7. Skills
+
+A skill is a prompt that worked, saved under a name, so it runs the same way
+for every person and every session. Not a convenience — consistency.
+
+| Skill | What it does |
+|---|---|
+| `/triage` | Read a ticket, look up tier, find the SOP clause, draft a cited reply, flag if a gate condition applies |
+| `/write-sop` | Read a resolved thread, find or create the SOP, draft the merged body with a diff summary |
+| `/clean-tickets` | Run the cleaning pass over `tickets_raw.csv` and report the five problems found |
+
+A skill's output must match what the equivalent hand-typed prompt produced.
+When you change a skill, re-run it against a known ticket and diff.
+
+---
+
+## 8. MCP — the plug
+
+MCP is how the agent reaches a real system. Without it the agent writes
+files; with it the agent acts.
+
+MCP does not make the agent smarter. It makes it **consequential** — which is
+exactly why the gate and the hook go in *before* the plug does. Everything
+built before the plug is reversible. The moment a real send is connected, it
+is not.
+
+Rules for any plug added here:
+
+- The credential is **scoped, revocable, boring**. It lives in `.env` or the
+  MCP config — never in this file, never in a prompt.
+- The question is never whether the agent can connect. It is **what that
+  credential is allowed to do**. Prefer read-only. Grant write only where a
+  gate covers it.
+- **Send one test to yourself first.** Before any ticket is answered through
+  a new plug, prove the plug works on your own address. If that does not
+  arrive, nothing after it matters.
+
+Planned plugs, in order: none required for the demo (the local store is
+enough) → optional GitHub Issues adapter → optional email send, gated.
+
+---
+
+## 9. Layers and dependencies
+
+Lower may not import higher.
+
+| Layer | Modules | Rule |
+|---|---|---|
+| Config | `config.py` | No side effects at import; use `get_settings()` |
+| Data | `models.py`, `store/` | Pure. No Anthropic imports |
+| Read surface | `tools.py` READ section, `tool_schemas.py` | Safe for the LLM |
+| Agent | `agent.py`, `prompts.py` | May import read tools only |
+| Execution | `executor.py` | Sole caller of WRITE functions |
+| Interface | `web/`, `review_cli.py` | Calls agent, then executor on approval |
+
+Keep the `# ---` READ/WRITE dividers in `github_tools.py`. They are
+load-bearing signposts, not decoration.
+
+---
+
+## 10. Current state
+
+**Built and verified (78 tests passing, measured in `docs/EVIDENCE.md`):**
+
+| Area | Modules |
+|---|---|
+| Vocabulary | `models.py` — tickets, SOPs, requesters, both proposal types, gate conditions, reject reasons |
+| Storage | `store/base.py` (READ/WRITE interface), `store/sqlite_store.py` |
+| Corpus | `seed.py` — deterministic, five planted defects, covered and uncovered topics |
+| Retrieval | `matching.py` — calibrated scorer, `CONFIDENT_MATCH = 0.37` |
+| Read surface | `tools.py`, `tool_schemas.py` — no write tool present |
+| Agents | `agent.py` — both pipelines, main/subagent split, per-ticket token accounting |
+| Gate | `gate.py` — four conditions, pure function, injection-resistant |
+| Execution | `executor.py` — re-checks approval, allocates SOP ids |
+| Interfaces | `web/` review console, `main.py` CLI, `review_cli.py` |
+| Demo mode | `demo.py` — the pipeline without a key |
+| Deployment | `Dockerfile`, `render.yaml`, `/healthz` |
+
+**Not built — remaining work, in priority order:**
+- **A live-key run.** Everything so far ran in demo mode, so token cost,
+  latency and the rules-on/rules-off comparison are unmeasured. This is the
+  biggest gap and the cheapest to close.
+- The agent-driven cleaning pass over `tickets_raw.csv`. The defects are
+  planted and asserted; the cleaning run is not implemented.
+- `.claude/skills/`, `.claude/agents/`, `.claude/hooks/` as files. The
+  patterns are implemented in Python (`prompts.py` holds what a skill would
+  hold, `agent.py` does the subagent split, `gate.py` does what a hook
+  would enforce) but not expressed in the workshop's file layout.
+- The GitHub adapter behind `TicketStore`. `github_tools.py` still talks to
+  GitHub directly and is not wired in.
+- No MCP plug. Deliberate: the gate and the hook go in before the plug, and
+  nothing in this demo needs to send outside the system.
+
+---
+
+## 11. The web interface
+
+One FastAPI service, server-rendered, Jinja templates, HTMX for partial
+updates. No SPA framework, no separate frontend build.
+
+1. **Approval queue — the centerpiece.** Each pending proposal shows the
+   agent's reasoning, its evidence (which SOP and which past tickets it
+   matched, with the score), and the exact body that will be written.
+   **Approve / Edit then approve / Reject with reason.** Approve is the only
+   path that reaches `executor.py`. Gate-held items render with the
+   `HOLD: HUMAN REVIEW` stamp visible and the send control disabled.
+   Put the three-layer safety argument in the UI copy. It is the point.
+2. **Ticket + SOP browser.** The corpus and the SOP pack, with the
+   ticket↔SOP linkage visible, and SOP IDs shown as the agent cites them.
+3. **Run controls.** Reseed the data; run `/clean-tickets`; run Agent A; run
+   Agent B; and **Activate agent** — a background worker that polls the store
+   on an interval and keeps filling the approval queue on its own. The worker
+   may *only* enqueue proposals. It must never approve or execute. A live
+   status strip shows running/idle, last poll, and pending count, so an
+   activated agent is visibly working.
+4. **Metrics dashboard.** Tickets processed, SOP match rate, approve / edit /
+   reject ratio, gate trigger counts by condition, SOPs created vs updated,
+   median latency, tokens and cost per ticket.
+
+Long runs go to a background task; the page polls via HTMX rather than
+blocking a request. Every outbound action needs a confirm step.
+
+**The queue is the feedback loop, not just a safety gate.** A reviewer who
+edits a draft has told you exactly where the agent was wrong — that is the
+highest-value signal the system produces, and it is free. So:
+
+- Store the reviewer's edited text *and* the agent's original, plus the diff.
+  An approve-with-edits is a labelled training example. Losing it wastes the
+  only ground truth this project generates.
+- Reject requires a reason, chosen from the failure modes in §12a. That turns
+  the reject count into a diagnosis instead of a number.
+- Surface the loop back to the reviewer: show how many of their edits led to
+  a rule or SOP change. People give feedback when they can see it land.
+- Edited drafts are the first place to look when writing a new rule for §3.
+  Three reviewers fixing the same thing is a missing rule, not three
+  mistakes.
+
+---
+
+## 12. Cost and the real risk
+
+Measure it, do not estimate it. The workshop's benchmark, to sanity-check
+against:
+
+| Item | Number |
+|---|---|
+| Tokens per ticket | ~800 in + ~400 out = ~1,200 |
+| Cost per ticket | ~₹0.03 |
+| 1,200 tickets/month | ~₹36 |
+| One human agent | ₹40,000–80,000/month |
+
+Record this project's own measured numbers in `docs/EVIDENCE.md` — never
+copy the table above as if it were a result.
+
+**Per-call price is not the cost.** Teams routinely perceive ~$0.03 per
+interaction and actually pay multiples of it. The gap is bucket 9 — retries,
+over-generation, context creep. This project's own version of that gap:
+every tool-use turn re-sends the transcript, so an 8-turn ticket costs far
+more than a 2-turn one. Log tokens **per ticket, not per call**, and report
+the turn count alongside.
+
+Of the nine cost buckets, five are live here: inference, retrieval, data
+work, maintenance, and hidden costs. Fine-tuning, model hosting, people and
+compliance overhead are out of scope and should be named as such rather than
+silently omitted.
+
+**The cost is not the risk. The error rate is the risk.** The question to
+answer in the write-up: what does one wrong reply to a Gold-tier requester
+cost, and how often does the gate catch it?
+
+---
+
+## 12a. The failure modes this design answers
+
+Name these in the write-up, with the mitigation each one maps to. They are
+what the governance session grades.
+
+| Failure mode | Where it bites here | Mitigation |
+|---|---|---|
+| **Hallucination / fabrication** | The agent invents an SOP clause or an entitlement that does not exist | Rules 1–2: cite an SOP ID or refuse. Grounding is the whole defence |
+| **Acting without authority** | A draft is sent that should have gone to a human | The three-layer gate (§5) |
+| **Stale knowledge** | SOPs drift; the agent cites a clause that was superseded | Agent B updates in place; one SOP per topic (rule 7) |
+| **Data quality** | Wrong tier, duplicate, blank ticket produces a confident wrong answer | The five planted problems and the cleaning pass (§4); rule 3 |
+| **Cost creep** | Turn count grows silently | Per-ticket token logging (§12) |
+
+The precedent worth citing: **Air Canada's chatbot invented a bereavement
+refund policy that did not exist, and a tribunal held the airline liable** —
+rejecting the argument that the bot was a separate legal entity. Generative
+models produce the most *plausible* next output, not a verified fact. That is
+structural, not a prompting bug. It is exactly why rule 2 makes "I cannot
+answer this from the SOP pack" a correct and expected output, and why a
+draft that cites nothing must never reach a requester.
+
+---
+
+## 13. Commands
+
+```bash
+python -m venv .venv && .venv\Scripts\activate      # Windows
+pip install -r requirements.txt
+cp .env.example .env                                 # then fill it in
+
+python -m src.ticket_agent.seed --seed 42            # generate the corpus
+python -m src.ticket_agent.main                      # CLI run
+uvicorn src.ticket_agent.web.app:app --reload        # web UI, :8000
+
+pytest -q
+python -m py_compile src/ticket_agent/*.py
+```
+
+If you add or rename an entry point, update this list in the same change.
+
+---
+
+## 14. DONE WHEN
+
+Build in this order. Each stage adds exactly one thing, and nothing is thrown
+away and restarted.
+
+| Stage | Done when |
+|---|---|
+| Data | `seed --seed 42` is reproducible · all five problems present in raw · `tickets_clean.csv` produced by an agent run that reports what it fixed |
+| Grounding | Three tickets answered with SOP IDs · the same three refuse cleanly with the SOP pack removed · both runs saved in `docs/EVIDENCE.md` |
+| Rules | The same ticket run with and without CLAUDE.md gives visibly different answers |
+| Skills | `.claude/skills/triage.md` exists · `/triage` output matches the hand-typed prompt |
+| Subagent | Subagent is called from the main agent · it receives only ticket + tier + clause · five tickets processed and logged |
+| Gate | All four conditions trigger · a flagged proposal cannot be executed · a test proves a rejected proposal performs zero writes |
+| Web | Queue renders evidence + score · approve is the only path to `executor.py` · Activate agent fills the queue without approving anything |
+| Deploy | Public URL loads · `/healthz` returns 200 · demo mode works with no API key |
+
+---
+
+## 15. Testing
+
+- A fake Anthropic client replaying canned tool-use turns, so the loop is
+  testable offline.
+- An in-memory `TicketStore`.
+- **A guard test that the tool schemas contain no write capability** — assert
+  the tool-name set is a subset of the known read/submit names. This is the
+  executable form of Section 5. Never weaken it to make something pass.
+- A rejected proposal performs zero writes.
+- Round-trip validation for `TriageProposal` and `SOPProposal`.
+- No network calls in tests. Mock the client and the store.
+
+---
+
+## 16. Conventions
+
+- `from __future__ import annotations` at the top of every module.
+- Type hints everywhere. Pydantic v2 for anything crossing the LLM boundary;
+  dataclasses for internal config.
+- Module docstrings explain *why*. Match the existing files' voice — they are
+  deliberately argumentative about the safety design.
+- Tool errors go back to the model as `is_error` tool results so it can
+  recover. Errors in `executor.py` raise.
+- Model id `claude-sonnet-5`, set only in `config.py`. `.env.example` still
+  says `claude-sonnet-4-5` — fix it.
+- Never log or echo `ANTHROPIC_API_KEY` / `GITHUB_TOKEN`. `.env` is
+  gitignored.
+
+---
+
+## 17. Deployment
+
+- `Dockerfile`, Python 3.11 slim, non-root, `uvicorn` on `$PORT`.
+- Render or Railway web service from the repo. Secrets in the dashboard.
+- SQLite on a mounted disk if the platform offers one; otherwise accept that
+  a redeploy resets to the committed seed corpus and say so in the README
+  rather than pretending it persists.
+- **Demo mode**: with no `ANTHROPIC_API_KEY`, the app still boots and serves
+  the corpus and the browser, with the run buttons replaying recorded
+  proposals. A submission link that 500s because a key expired is a failed
+  submission.
+- The README opens with the live URL and a 60-second walkthrough: reseed →
+  activate agent → watch the queue fill → approve one → see the write land.
+
+---
+
+## 18. What the demo must show
+
+The four things the lab grades a live run on. Build toward these, not toward
+a feature list.
+
+1. **The gate triggering.** Pick an access-request or Gold-tier ticket. Run
+   it live. Show the `HOLD: HUMAN REVIEW` stamp — and show the write *not*
+   happening.
+2. **The subagent handoff.** Run a ticket and say what the main agent did and
+   what the subagent did.
+3. **A failure.** One ticket the agent got wrong. What rule was it missing?
+4. **The cost.** State the measured number, and what 1,200 tickets would
+   cost.
+
+---
+
+## 19. Working agreements
+
+- Finish one pipeline end to end before starting the other. Agent A plus the
+  gate plus the web queue is a complete, defensible submission. Agent B is
+  the differentiator to add next.
+- Do not add from the not-building list without asking: SLA timers,
+  auto-close, real-time webhooks, self-hosted models.
+- Change the architecture, update this file and `docs/ARCHITECTURE.md` in the
+  same change. A stale CLAUDE.md is worse than none.
+- Report honestly. If a test fails, say so with the output. Never claim the
+  deployment works without having loaded the URL.
+
+---
+
+## 20. Sources
+
+Slide decks live in `../AI workshop 2/` as per-slide PNGs (the PDFs beside
+them are image-only and cannot be text-extracted).
+
+| Deck | What this file took from it |
+|---|---|
+| Session 4 — Agents & Agentic AI | Agent vs chatbot vs search vs routing; the goal → decide → act loop; reasoning vs planning |
+| Session 5 — Lab Day | The five parts (§2); CLAUDE.md as rules (§3); planted data problems (§4); the four-condition gate and hooks (§5); subagent lanes (§6); skills (§7); MCP and credentials (§8); cost method (§12); DONE WHEN (§14); demo criteria (§18) |
+| Session 3 — RAG for PMs | Grounding, citation, and when retrieval is the wrong tool |
+| Session 6 — Cost & ROI | Nine cost buckets; perceived vs actual cost; maintenance as a rolling tax (§12) |
+| Session 7 — UX Guidelines | The feedback loop and balancing control vs automation (§11) |
+| Session 8 — AI Governance | Failure modes and the Air Canada precedent (§12a) |
+
+Sessions 1 and 2 (AI use cases, GenAI overview) are general framing and are
+not reflected here. Session 6's PNG set is partial — 15 of 41 slides.

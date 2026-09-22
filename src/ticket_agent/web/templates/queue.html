@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Review queue{% endblock %}
+
+{% block body %}
+<h1>Review queue</h1>
+<p class="lede">
+  Each row is something the agent wants to do and has not done. Open one to
+  see what it is based on, then approve, edit or reject it.
+</p>
+
+<div class="filters">
+  <a href="/queue?show=open" aria-current="{{ 'true' if show == 'open' else 'false' }}">Waiting</a>
+  <a href="/queue?show=held" aria-current="{{ 'true' if show == 'held' else 'false' }}">Held</a>
+  <a href="/queue?show=pending" aria-current="{{ 'true' if show == 'pending' else 'false' }}">Ready to send</a>
+  <a href="/queue?show=rejected" aria-current="{{ 'true' if show == 'rejected' else 'false' }}">Rejected</a>
+  <a href="/queue?show=all" aria-current="{{ 'true' if show == 'all' else 'false' }}">Everything</a>
+</div>
+
+{% if proposals %}
+<div class="ledger">
+  {% for p in proposals %}
+  {% set t = tickets.get(p.ticket_id) %}
+  <a class="row {% if p.status.value == 'held' %}is-held{% elif p.status.value == 'pending' %}is-ready{% else %}is-done{% endif %}"
+     href="/queue/{{ p.proposal_id }}">
+    <span class="spine"></span>
+    <span class="id">{{ p.ticket_id }}</span>
+    <span class="subject">
+      {% if p.kind == 'sop' %}
+        New procedure: {{ p.payload.get('title', 'untitled') }}
+      {% else %}
+        {{ t.title if t else p.ticket_id }}
+      {% endif %}
+      <span class="why">
+        {% if p.status.value == 'held' %}
+          {% for c in p.gate_conditions %}<span class="tag hold">{{ c.value.replace('_', ' ') }}</span>{% endfor %}
+        {% elif p.status.value == 'pending' %}
+          <span class="tag ready">ready</span>
+          cites {{ p.payload.get('cited_sop_ids', [])|join(', ') or 'nothing' }}
+        {% else %}
+          <span class="tag plain">{{ p.status.value }}</span>
+          {% if p.reject_reason %}{{ p.reject_reason.value.replace('_', ' ') }}{% endif %}
+        {% endif %}
+      </span>
+    </span>
+    <span class="meta">{{ p.created_at.strftime('%d %b %H:%M') }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <b>Nothing waiting.</b>
+  Start the agent from the overview, or run a triage pass, and proposals appear here.
+</div>
+{% endif %}
+{% endblock %}

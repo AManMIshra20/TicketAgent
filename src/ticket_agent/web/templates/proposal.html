@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ p.ticket_id }}{% endblock %}
+
+{% block body %}
+<h1>{% if p.kind == 'sop' %}Proposed procedure{% else %}Proposed reply{% endif %}</h1>
+<p class="lede">
+  {% if ticket %}{{ ticket.title }} — {% endif %}<span class="id">{{ p.ticket_id }}</span>
+</p>
+
+{% if request.query_params.get('blocked') %}
+<div class="mode">
+  <b>Not sent.</b> This proposal is held, so approving it needs a reason
+  recorded first. Say why you are taking it on, then approve.
+</div>
+{% endif %}
+
+<form method="post" action="/queue/{{ p.proposal_id }}/decide">
+<div class="split">
+
+  <section>
+    <h2>{% if p.kind == 'sop' %}Document{% else %}Reply{% endif %}</h2>
+    <div class="draft editing">
+      {% if stamp %}<span class="stamp">{{ stamp.split('[')[0].strip() }}</span>{% endif %}
+      <textarea name="draft" spellcheck="true" aria-label="Draft text, editable">{% if p.kind == 'sop' %}{{ p.payload.get('body', '') }}{% else %}{{ p.payload.get('draft_response', '') }}{% endif %}</textarea>
+    </div>
+    <p class="note">
+      Edit it here if it is nearly right. What you change is kept alongside
+      what the agent wrote, so repeated edits show up as a missing rule.
+    </p>
+
+    {% if p.payload.get('reasoning') %}
+    <div class="panel">
+      <h2>How it got there</h2>
+      <p style="margin:0">{{ p.payload.get('reasoning') }}</p>
+    </div>
+    {% endif %}
+
+    {% if p.payload.get('diff_summary') %}
+    <div class="panel">
+      <h2>What changed</h2>
+      <p style="margin:0">{{ p.payload.get('diff_summary') }}</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <section>
+    {% if reasons %}
+    <div class="panel">
+      <h2>Why this stopped</h2>
+      <ul class="reasons">
+        {% for r in reasons %}<li>{{ r }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+      <h2>What it is based on</h2>
+      {% if p.payload.get('evidence') %}
+        {% for e in p.payload.get('evidence') %}
+        <div class="evidence {% if e.get('score', 0) < 0.37 %}weak{% endif %}">
+          <span class="id">{{ e.get('sop_id') or e.get('past_ticket_id') or 'unmatched' }}</span>
+          matched <span class="score">{{ '%.2f'|format(e.get('score', 0)) }}</span>
+          {% if e.get('score', 0) < 0.37 %}(below the 0.37 threshold){% endif %}
+          {% if e.get('excerpt') %}<blockquote>{{ e.get('excerpt') }}</blockquote>{% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="note" style="margin-top:0">
+          No match was recorded. A reply with nothing behind it is exactly what
+          the citation rule exists to catch.
+        </p>
+      {% endif %}
+
+      {% for sop in cited %}
+      <p style="margin:12px 0 0"><a href="/sops/{{ sop.sop_id }}"><span class="id">{{ sop.sop_id }}</span> — {{ sop.title }}</a></p>
+      {% endfor %}
+    </div>
+
+    <div class="panel">
+      <h2>The ticket</h2>
+      <table class="facts">
+        <tr><th>Reported by</th><td>{% if requester %}{{ requester.name }}, {{ requester.business_unit }}{% else %}Not recorded{% endif %}</td></tr>
+        <tr><th>Support tier</th><td>{% if requester %}{{ requester.tier.value|capitalize }}{% else %}Unknown — cannot be verified{% endif %}</td></tr>
+        {% if ticket %}
+        <tr><th>Severity</th><td>{{ ticket.severity.value|capitalize }}</td></tr>
+        <tr><th>Category</th><td>{{ ticket.category.value.replace('_', ' ') }}</td></tr>
+        <tr><th>Raised</th><td>{{ ticket.created_at.strftime('%d %b %Y, %H:%M') }}</td></tr>
+        {% endif %}
+        <tr><th>Model turns</th><td class="num">{{ p.turns }}</td></tr>
+        <tr><th>Tokens</th><td class="num">{{ p.input_tokens + p.output_tokens }}</td></tr>
+      </table>
+      {% if ticket %}
+      <p style="margin:14px 0 0"><a href="/tickets/{{ ticket.ticket_id }}">Open the full ticket</a></p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+<div class="decide">
+  <div class="controls">
+    <button name="action" value="approve">
+      {% if p.kind == 'sop' %}Publish procedure{% else %}Approve and send{% endif %}
+    </button>
+    <button name="action" value="reject" class="ghost danger">Reject</button>
+
+    <select name="reason" aria-label="Reason, if rejecting">
+      <option value="">Reason, if rejecting…</option>
+      {% for r in reject_reasons %}
+      <option value="{{ r.value }}">{{ r.value.replace('_', ' ')|capitalize }}</option>
+      {% endfor %}
+    </select>
+
+    <input type="text" name="note"
+           placeholder="{% if reasons %}Required: why you are taking this on{% else %}Note (optional){% endif %}"
+           aria-label="Reviewer note">
+  </div>
+  <p class="note" style="margin-bottom:0">
+    {% if reasons %}
+      This one is held. Approving it means you are overriding a stop that was
+      put there deliberately — say why, and it goes on the record with your
+      decision.
+    {% else %}
+      Approving posts the reply to the ticket. Nothing has been sent yet.
+    {% endif %}
+  </p>
+</div>
+</form>
+{% endblock %}

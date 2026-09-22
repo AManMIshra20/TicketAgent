@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ t.ticket_id }}{% endblock %}
+
+{% block body %}
+<h1>{{ t.title }}</h1>
+<p class="lede"><span class="id">{{ t.ticket_id }}</span> · {{ t.status.value }}</p>
+
+<div class="split">
+  <section>
+    <div class="panel">
+      <h2>What was reported</h2>
+      <div class="doc">{{ t.body or 'This ticket has a subject line and nothing in the body — one of the planted defects.' }}</div>
+    </div>
+
+    {% if t.comments %}
+    <h2>Thread</h2>
+    <div class="thread">
+      {% for c in t.comments %}
+      <article>
+        <span class="who">{{ c.author }}</span>
+        <span class="when">{{ c.created_at.strftime('%d %b, %H:%M') }}</span>
+        <p>{{ c.body }}</p>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section>
+    <div class="panel">
+      <h2>Details</h2>
+      <table class="facts">
+        <tr><th>Reported by</th><td>{% if requester %}{{ requester.name }}{% else %}Not recorded{% endif %}</td></tr>
+        <tr><th>Business unit</th><td>{% if requester %}{{ requester.business_unit }}{% else %}—{% endif %}</td></tr>
+        <tr><th>Support tier</th><td>{% if requester %}{{ requester.tier.value|capitalize }}{% else %}Unknown{% endif %}</td></tr>
+        <tr><th>Severity</th><td>{{ t.severity.value|capitalize }}</td></tr>
+        <tr><th>Category</th><td>{{ t.category.value.replace('_', ' ') }}</td></tr>
+        <tr><th>Raised</th><td>{{ t.created_at.strftime('%d %b %Y, %H:%M') }}</td></tr>
+        <tr><th>Looked at by the agent</th><td>{{ 'Yes' if t.triaged else 'Not yet' }}</td></tr>
+      </table>
+    </div>
+
+    {% if t.resolution_notes %}
+    <div class="panel">
+      <h2>How it was resolved</h2>
+      <p style="margin:0">{{ t.resolution_notes }}</p>
+    </div>
+    {% endif %}
+
+    {% if proposals %}
+    <div class="panel">
+      <h2>Proposals on this ticket</h2>
+      {% for p in proposals %}
+      <p style="margin:0 0 8px">
+        <a href="/queue/{{ p.proposal_id }}">{{ p.kind }} — {{ p.status.value }}</a>
+      </p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

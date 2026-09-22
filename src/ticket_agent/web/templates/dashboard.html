@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block body %}
+<h1>Overview</h1>
+<p class="lede">
+  The agent reads a ticket, looks up who is asking, finds the procedure that
+  covers it and drafts a reply citing that procedure. Anything it cannot
+  ground, or that touches access, a Gold-tier requester or a critical
+  incident, stops here for a person.
+</p>
+
+<div id="status" hx-get="/partials/status" hx-trigger="every 4s" hx-swap="outerHTML">
+  {% include "partials/status.html" %}
+</div>
+
+<div class="board">
+  <div class="held">
+    <span class="figure">{{ m.held }}</span>
+    <span class="caption">Held for a person</span>
+  </div>
+  <div class="ready">
+    <span class="figure">{{ m.pending }}</span>
+    <span class="caption">Ready to send</span>
+  </div>
+  <div>
+    <span class="figure">{{ m.tickets_untriaged }}</span>
+    <span class="caption">Not yet looked at</span>
+  </div>
+  <div>
+    <span class="figure">{{ m.sops }}</span>
+    <span class="caption">Procedures on file</span>
+  </div>
+</div>
+
+<div class="split">
+  <section>
+    <div class="panel">
+      <h2>Run the agent</h2>
+      <div class="controls-grid">
+        {% if worker.running %}
+        <form method="post" action="/run/stop"><button class="danger">Stop agent</button></form>
+        {% else %}
+        <form method="post" action="/run/start"><button>Start agent</button></form>
+        {% endif %}
+        <form method="post" action="/run/triage">
+          <input type="hidden" name="limit" value="5">
+          <button class="ghost">Triage next 5</button>
+        </form>
+        <form method="post" action="/run/sop">
+          <input type="hidden" name="limit" value="3">
+          <button class="ghost">Write 3 procedures</button>
+        </form>
+        <form method="post" action="/run/seed"><button class="ghost">Reset data</button></form>
+      </div>
+      <p class="note">
+        Started, the agent polls for new tickets and keeps filling this queue
+        on its own. It can only add proposals — approving and sending stay
+        with you.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>Why things stopped</h2>
+      {% set g = m.gate_counts %}
+      <table class="facts">
+        <tr><th>Asked for access or a permission change</th><td class="num">{{ g.access_grant }}</td></tr>
+        <tr><th>Critical severity</th><td class="num">{{ g.critical_severity }}</td></tr>
+        <tr><th>Gold-tier requester, or requester unknown</th><td class="num">{{ g.gold_tier }}</td></tr>
+        <tr><th>No procedure covers it</th><td class="num">{{ g.no_sop_coverage }}</td></tr>
+      </table>
+      <p class="note">
+        A ticket can trip more than one, so these add up to more than the
+        number held.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h2>What reviewers decided</h2>
+      {% if m.decided %}
+      <table class="facts">
+        <tr><th>Approved as drafted</th><td class="num">{{ m.approved }} ({{ m.approve_rate }}%)</td></tr>
+        <tr><th>Approved after editing</th><td class="num">{{ m.edited }} ({{ m.edit_rate }}%)</td></tr>
+        <tr><th>Rejected</th><td class="num">{{ m.rejected }} ({{ m.reject_rate }}%)</td></tr>
+        <tr><th>Drafts that cited a procedure</th><td class="num">{{ m.citation_rate }}%</td></tr>
+      </table>
+      <p class="note">
+        Edits are the useful signal. When several reviewers fix the same
+        thing, that is a missing rule, not three separate mistakes.
+      </p>
+      {% else %}
+      <p class="note">Nothing decided yet. Work through the review queue and these fill in.</p>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <h2>What it cost</h2>
+      <table class="facts">
+        <tr><th>Tokens per ticket</th><td class="num">{{ m.tokens_per_ticket or '—' }}</td></tr>
+        <tr><th>Model turns per ticket</th><td class="num">{{ m.avg_turns or '—' }}</td></tr>
+        <tr><th>Cost per ticket</th><td class="num">{% if m.cost_per_ticket %}₹{{ '%.3f'|format(m.cost_per_ticket) }}{% else %}—{% endif %}</td></tr>
+        <tr><th>Projected at 1,200 tickets a month</th><td class="num">{% if m.cost_1200 %}₹{{ '%.0f'|format(m.cost_1200) }}{% else %}—{% endif %}</td></tr>
+      </table>
+      <p class="note">
+        Measured per ticket, not per call: each tool turn resends the whole
+        transcript, so turn count drives the bill. The cost is not the risk
+        though — the error rate is. One wrong reply to a Gold-tier requester
+        costs more than a month of this.
+      </p>
+    </div>
+  </section>
+</div>
+{% endblock %}

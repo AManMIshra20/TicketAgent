@@ -1,0 +1,53 @@
+{
+  "blank_description": [
+    "MERT-1041",
+    "MERT-1022",
+    "MERT-1037",
+    "MERT-1042"
+  ],
+  "counts": {
+    "raw_rows": 56,
+    "requesters": 12,
+    "sops": 6,
+    "tickets": 53,
+    "topics_with_sop": 6,
+    "topics_without_sop": 4
+  },
+  "date_formats": [
+    "%Y-%m-%d %H:%M",
+    "%d/%m/%Y %H:%M",
+    "%b %d, %Y %I:%M %p"
+  ],
+  "duplicate_ticket": [
+    "MERT-1012",
+    "MERT-1029",
+    "MERT-1044"
+  ],
+  "missing_requester": [
+    "MERT-1005",
+    "MERT-1018",
+    "MERT-1033",
+    "MERT-1024",
+    "MERT-1013",
+    "MERT-1014",
+    "MERT-1016",
+    "MERT-1006",
+    "MERT-1032",
+    "MERT-1038",
+    "MERT-1047",
+    "MERT-1028",
+    "MERT-1029",
+    "MERT-1010"
+  ],
+  "seed": 42,
+  "wrong_category": [
+    "MERT-1006",
+    "MERT-1046",
+    "MERT-1011",
+    "MERT-1003",
+    "MERT-1010",
+    "MERT-1045",
+    "MERT-1001",
+    "MERT-1004"
+  ]
+}

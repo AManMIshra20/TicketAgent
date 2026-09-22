@@ -1,0 +1,20 @@
+# Agent
+anthropic>=0.40.0
+pydantic>=2.9.0
+python-dotenv>=1.0.1
+
+# Web interface
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+jinja2>=3.1.4
+python-multipart>=0.0.12
+
+# CLI review path
+rich>=13.9.0
+
+# Optional GitHub adapter. Not required for the local demo -- the SQLite
+# store is the default so the deployment needs no third-party token.
+PyGithub>=2.4.0
+
+# Tests
+pytest>=8.3.0

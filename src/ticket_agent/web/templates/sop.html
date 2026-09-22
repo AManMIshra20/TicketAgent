@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ sop.sop_id }}{% endblock %}
+
+{% block body %}
+<h1>{{ sop.title }}</h1>
+<p class="lede">
+  <span class="id">{{ sop.sop_id }}</span> · revision {{ sop.revision }} ·
+  updated {{ sop.updated_at.strftime('%d %b %Y') }}
+</p>
+
+<div class="panel">
+  <div class="doc">{{ sop.body }}</div>
+</div>
+
+<p class="note">
+  This is the id the agent cites. A reply that names it can be checked against
+  this page; a reply that names nothing cannot be checked at all.
+</p>
+{% endblock %}

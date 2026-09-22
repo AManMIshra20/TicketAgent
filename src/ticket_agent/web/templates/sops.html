@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}SOP pack{% endblock %}
+
+{% block body %}
+<h1>SOP pack</h1>
+<p class="lede">
+  Every procedure the agent is allowed to cite. If a ticket is not covered
+  here, the correct answer is that it cannot be answered — not a guess.
+</p>
+
+<div class="ledger">
+  {% for s in sops %}
+  <a class="row is-ready" href="/sops/{{ s.sop_id }}">
+    <span class="spine"></span>
+    <span class="id">{{ s.sop_id }}</span>
+    <span class="subject">
+      {{ s.title }}
+      <span class="why">
+        {{ s.category.value.replace('_', ' ') }} ·
+        revision {{ s.revision }} ·
+        {{ counts.get(s.topic, 0) }} ticket(s) on this topic
+      </span>
+    </span>
+    <span class="meta">{{ s.updated_at.strftime('%d %b %Y') }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

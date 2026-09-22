@@ -1,0 +1,13 @@
+requester_id,name,business_unit,tier
+MER-001,Anita Rao,Finance,gold
+MER-002,Devang Shah,Finance,gold
+MER-003,Priya Menon,Supply Chain,gold
+MER-004,Karan Iyer,Supply Chain,silver
+MER-005,Sneha Kulkarni,Manufacturing,silver
+MER-006,Rahul Bose,Manufacturing,silver
+MER-007,Farah Qureshi,Human Resources,silver
+MER-008,Vikram Nair,Human Resources,bronze
+MER-009,Meera Joshi,Sales,bronze
+MER-010,Arjun Pillai,Sales,bronze
+MER-011,Nikhil Varma,IT Operations,silver
+MER-012,Tara D'Souza,Legal & Compliance,gold
