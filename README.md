@@ -118,7 +118,7 @@ that did not exist, which a tribunal held the airline liable for.
 pytest -q
 ```
 
-78 tests, no network calls, no API key. The agent loop is exercised against a
+83 tests, no network calls, no API key. The agent loop is exercised against a
 fake client that replays canned turns.
 
 ## Deploy
