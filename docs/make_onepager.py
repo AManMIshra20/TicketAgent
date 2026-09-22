@@ -77,8 +77,8 @@ def header(canvas, doc):
     canvas.setFillColor(SOFT)
     canvas.drawString(
         MARGIN, y - 25.5,
-        "An agentic AI system that drafts service-desk replies grounded in "
-        "documented procedure — and cannot send anything without a human.",
+        "An agentic AI system that drafts service-desk replies citing the procedure "
+        "they came from, and cannot send any of them on its own.",
     )
 
     canvas.setFont("Helvetica", 7.6)
@@ -136,38 +136,38 @@ def build() -> None:
     # ---------------- left column ----------------
     s.append(Paragraph("What this is", head))
     s.append(Paragraph(
-        "An internal IT service desk takes roughly 1,200 tickets a month. Most are "
-        "repeats of something already solved and documented — but documentation "
-        "only helps if someone remembers it exists. This closes that loop both "
-        "ways.", body))
+        "A service desk this size takes about 1,200 tickets a month, and most are "
+        "repeats. The fix is usually written down already. That helps nobody if the "
+        "engineer on shift has never read it.", body))
     s.append(Paragraph(
-        "<b>Agent A (resolver)</b> reads a new ticket, looks up the requester's "
-        "support tier, searches the procedure library, and drafts a reply that "
-        "cites the procedure by its document ID. <b>Agent B (author)</b> takes the "
-        "opposite case: when a ticket was resolved that no procedure covered, it "
-        "reads how the human actually fixed it and drafts the missing procedure.", body))
+        "Two agents work opposite ends of the same problem. <b>Agent A</b> reads an "
+        "incoming ticket, checks the requester's support tier, searches the "
+        "procedure library, and drafts a reply citing whichever procedure it used, "
+        "by ID. <b>Agent B</b> takes the other case. When a ticket gets resolved "
+        "that no procedure covered, it reads the thread to see what the engineer "
+        "actually did, then drafts the procedure that was missing.", body))
     s.append(Paragraph(
-        "The problem is modelled on enterprise IT support work — Jira for tickets, "
-        "Confluence for procedures. In this build those are stand-ins: a local "
-        "ticket store and a folder of markdown, so the demonstration has no "
-        "external dependency. The interface labels them as stand-ins rather than "
-        "claiming a live connection.", body))
+        "The setting is enterprise IT support: Jira for tickets, Confluence for "
+        "procedures. Both are stand-ins, backed by a local ticket store and a folder "
+        "of markdown, so nothing external can break on submission day. Each panel "
+        "says so, instead of putting a green 'connected' badge over a SQLite file.",
+        body))
 
     s.append(Paragraph("The core design decision", head))
     s.append(Paragraph(
-        "The human-approval gate is <b>a code boundary, not a prompt instruction</b>. "
-        "Asking a model to seek permission is a request it can be argued out of — "
-        "including by text inside a ticket. Here it is structural, in four "
-        "independent layers:", body))
+        "The approval gate is <b>a code boundary, not a prompt instruction</b>. "
+        "Asking a model to check before it acts is a request, and requests can be "
+        "argued out of, including by text sitting inside a ticket. Four layers make "
+        "it structural instead:", body))
 
     layers = Table([
         [Paragraph('<b>1. Rule</b>', small),
          Paragraph("Stated in CLAUDE.md and the system prompt. A request.", small)],
         [Paragraph('<b>2. Gate</b>', small),
-         Paragraph("Runs in code after the model speaks, reading the ticket and "
-                   "requester record — not the model's opinion.", small)],
+         Paragraph("Runs in code once the model has spoken, reading the ticket and "
+                   "the requester record. It never consults the model's opinion.", small)],
         [Paragraph('<b>3. Boundary</b>', small),
-         Paragraph("The model is never given a write-capable tool. Its only "
+         Paragraph("The model holds no write-capable tool at all. Its only "
                    "terminal move produces a proposal object.", small)],
         [Paragraph('<b>4. Hook</b>', small),
          Paragraph("Refuses any code edit that would widen the tool surface.", small)],
@@ -182,35 +182,33 @@ def build() -> None:
     s.append(Spacer(1, 5))
 
     s.append(Paragraph(
-        "Four conditions always stop a draft for a person: a request for access or "
-        "permissions, critical severity, a Gold-tier requester (an unknown "
-        "requester counts as Gold), and — the important one — <b>no procedure "
-        "covering the ticket</b>. The agent reporting that it cannot answer is a "
-        "correct outcome, not a failure: it routes the ticket to Agent B to write "
-        "what is missing.", body))
+        "Four conditions stop a draft: a request for access or permissions, "
+        "critical severity, a Gold-tier requester, and no procedure covering the "
+        "ticket. An unknown requester counts as Gold, since the safe assumption "
+        "there is the expensive one. The last condition matters most. When the agent "
+        "reports that it cannot answer, the system is working: the ticket goes to "
+        "Agent B to write what was missing.", body))
     s.append(Paragraph(
-        "This guards against the failure that made Air Canada liable for its "
-        "chatbot — a confident, well-formed policy that did not exist. Citations "
-        "are verified in code after the model speaks; an ID that does not exist is "
-        "stripped and the proposal downgraded.", body))
+        "Air Canada's chatbot invented a refund policy and a tribunal held the "
+        "airline liable. Citations here are checked in code after the model speaks: "
+        "an ID that does not resolve is stripped and the proposal downgraded.", body))
 
     s.append(Paragraph("How it works", head))
     flow = Table([
         [Paragraph('<b>Read</b>', small),
-         Paragraph("The agent picks its own inputs: the ticket, the requester "
-                   "record, the procedure library. Nothing is pasted in for it.", small)],
+         Paragraph("The agent chooses its own inputs: ticket, requester record, "
+                   "procedure library. Nothing is pasted in for it.", small)],
         [Paragraph('<b>Score</b>', small),
-         Paragraph("A match score computed in code, not the model's opinion of "
-                   "its own confidence. The reviewer sees the same number.", small)],
+         Paragraph("Computed in code, not the model's estimate of its own "
+                   "confidence. The reviewer sees the number the agent saw.", small)],
         [Paragraph('<b>Propose</b>', small),
-         Paragraph("The model's only terminal move: a structured object, not an "
-                   "action. A second instance writes the reply from three inputs "
-                   "— ticket, tier, clause.", small)],
+         Paragraph("The model's only terminal move: a structured object, never an "
+                   "action. A second instance writes the reply from three inputs.", small)],
         [Paragraph('<b>Hold</b>', small),
-         Paragraph("The gate re-decides independently and stamps HOLD where any "
-                   "condition applies.", small)],
+         Paragraph("The gate decides again, independently, and stamps HOLD where "
+                   "a condition applies.", small)],
         [Paragraph('<b>Approve</b>', small),
-         Paragraph("A person decides. This is the only path that writes anything.", small)],
+         Paragraph("A person decides. Nothing else in the system writes anything.", small)],
     ], colWidths=[54, COL_W - 54])
     flow.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -223,45 +221,44 @@ def build() -> None:
 
     s.append(Paragraph("Checking it yourself", head))
     s.append(Paragraph(
-        "The repository runs offline with no API key. Every figure opposite is "
-        "reproducible:", small))
+        "Everything runs offline without an API key, so the figures opposite can "
+        "be checked rather than trusted:", small))
     s.append(Spacer(1, 3))
-    s.append(Paragraph("pip install -r requirements.txt", mono))
     s.append(Paragraph("python -m src.ticket_agent.seed --seed 42", mono))
     s.append(Paragraph("pytest -q", mono))
     s.append(Paragraph("uvicorn src.ticket_agent.web.app:app", mono))
     s.append(Spacer(1, 3))
     s.append(Paragraph(
-        "The corpus is seeded deterministically: 53 tickets, 6 procedures, and "
-        "five defects planted on purpose, because real queues carry all five.", small))
+        "The corpus comes from a fixed seed: 53 tickets, 6 procedures, and five "
+        "defects planted on purpose, because real queues arrive carrying all five.",
+        small))
 
     s.append(FrameBreak())
 
     # ---------------- right column ----------------
     s.append(Paragraph("Using the website", head))
     s.append(Paragraph(
-        "<b>1.</b> <b>Overview.</b> Three panels show the systems: Jira (where "
-        "tickets come from), Confluence (where procedures live), and the agent "
-        "itself. Press <b>Activate</b> — the agent panel turns green and begins "
-        "picking up tickets on its own.", step))
+        "<b>1.</b> <b>Overview.</b> Three panels: Jira, Confluence, and the agent "
+        "itself. Press <b>Activate</b>. The agent panel turns green and starts "
+        "picking up tickets by itself.", step))
     s.append(Paragraph(
-        "<b>2.</b> <b>Review queue.</b> Each row is something the agent wants to "
-        "do and has not done. A red spine means it stopped; green means it is "
-        "ready to send.", step))
+        "<b>2.</b> <b>Review queue.</b> Every row is something the agent wants to "
+        "do and has not done. A red spine means it stopped. Green means it is ready "
+        "to go.", step))
     s.append(Paragraph(
-        "<b>3.</b> <b>Open a red row.</b> It carries a HOLD: HUMAN REVIEW stamp "
-        "and states which condition stopped it. Try approving it with the note "
-        "field empty — <b>it refuses to send</b>. That is the system working.", step))
+        "<b>3.</b> <b>Open a red row.</b> It carries a HOLD: HUMAN REVIEW stamp and "
+        "names the condition that stopped it. Try approving with the note field "
+        "empty. <b>It refuses.</b> That is the whole point of the thing.", step))
     s.append(Paragraph(
-        "<b>4.</b> <b>Open a green row.</b> The right column shows which procedure "
-        "matched and the score it matched at. Edit the reply if needed, then "
-        "approve — only now does it appear on the ticket.", step))
+        "<b>4.</b> <b>Open a green row.</b> The right column shows the matched "
+        "procedure and the score it matched at. Edit the reply if it needs it, then "
+        "approve. Only now does it reach the ticket.", step))
     s.append(Paragraph(
-        "<b>5.</b> <b>Back to Overview.</b> The decision appears in the counts. "
-        "Edits are kept alongside what the agent originally wrote: repeated edits "
-        "of the same kind indicate a missing rule, not three separate mistakes.", step))
+        "<b>5.</b> <b>Back to Overview.</b> Your decision lands in the counts. Edits "
+        "are stored beside the agent's original wording, so the same correction "
+        "recurring points at a missing rule, not three unrelated mistakes.", step))
     s.append(Paragraph(
-        "Browse tickets and procedures from the left rail at any time. "
+        "Tickets and procedures are browsable from the left rail at any time. "
         "<b>Deactivate</b> stops the agent.", small))
     s.append(Spacer(1, 4))
 
@@ -283,39 +280,41 @@ def build() -> None:
     s.append(figures)
     s.append(Spacer(1, 4))
     s.append(Paragraph(
-        "The match threshold (0.37) was calibrated against known ground truth, not "
-        "guessed. It costs 13% recall and buys zero false citations — a deliberate "
-        "asymmetry, since a false refusal costs a reviewer thirty seconds while a "
-        "false citation is a policy stated in writing to someone who will act on it.", small))
+        "The 0.37 threshold was calibrated against known ground truth rather than "
+        "picked by feel. It costs 13% recall and buys zero false citations. That "
+        "asymmetry is deliberate: a false refusal wastes a reviewer thirty seconds, "
+        "while a false citation is a policy stated in writing to someone who will "
+        "act on it.", small))
     s.append(Spacer(1, 6))
 
     s.append(Paragraph("Declaration of AI use", head))
     s.append(Paragraph(
-        "This project was built with Claude (Anthropic), used as a coding agent "
-        "throughout. The extent of that use is material and is stated in full.", body))
+        "This project was built with Claude (Anthropic) acting as a coding agent. "
+        "The extent of that is substantial, and worth stating precisely.", body))
     s.append(Paragraph(
-        "<b>Generated by AI:</b> substantially all source code, the test suite, the "
-        "interface and its styling, the repository documentation, and the text of "
-        "this document. AI also proposed the retrieval-scoring method, calibrated "
-        "the confidence threshold, and identified the thread-safety defect in the "
-        "background worker.", body))
+        "<b>What the AI produced:</b> essentially all of the source code, the tests, "
+        "the interface and its styling, the repository documentation, and the text "
+        "on this page. It also proposed the retrieval-scoring approach and "
+        "calibrated the 0.37 threshold against the seeded corpus. It caught a "
+        "thread-safety bug in the background worker that I would not have found "
+        "until it crashed something.", body))
     s.append(Paragraph(
-        "<b>My contribution:</b> defining the problem from my own service-desk "
-        "experience at TCS; the governing constraint that the approval gate must "
-        "be structural rather than a prompt instruction; the design decisions the "
-        "agent raised for a human to settle — data backend, deployment target, "
-        "interface scope, how the systems are labelled; direction of the build and "
-        "review of each stage; and deployment.", body))
+        "<b>What I brought:</b> the problem itself, from service-desk work at TCS; "
+        "the constraint that the approval gate had to be structural rather than a "
+        "line in a prompt, which shaped most of what followed; the decisions the "
+        "agent stopped to ask about, including the data backend, the deployment "
+        "target and how the stand-in systems should be labelled; review at each "
+        "stage; and the deployment.", body))
     s.append(Paragraph(
-        "<b>Verification:</b> every factual claim above is reproducible from the "
-        "repository. The tests run offline without an API key.", body))
+        "Anyone can check the claims above against the repository. The test suite "
+        "runs without an API key.", body))
     s.append(Paragraph(
-        "<b>Stated limitation:</b> the results above were produced in demo mode, "
-        "where the language model is replaced by a fixed decision procedure over "
-        "the same retrieval results. The safety architecture, retrieval and "
-        "interface figures are real; live-model accuracy and token cost are <b>not "
-        "measured</b>, and are recorded as unmeasured in docs/EVIDENCE.md rather "
-        "than estimated.", body))
+        "<b>One limitation, stated plainly:</b> every figure here comes from demo "
+        "mode, where a fixed decision procedure stands in for the language model "
+        "over the same retrieval results. The safety architecture, the retrieval "
+        "numbers and the interface are real. Live-model accuracy and token cost are "
+        "not measured at all, and docs/EVIDENCE.md records them as unmeasured "
+        "instead of estimating them.", body))
 
     doc.build(s)
     print(f"wrote {OUT}")
