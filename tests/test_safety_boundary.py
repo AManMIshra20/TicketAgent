@@ -114,6 +114,49 @@ def test_read_side_modules_do_not_import_the_executor(module_name):
             pytest.fail(f"{module_name}.py imports the executor")
 
 
+def test_the_hook_allowlist_matches_this_one():
+    """The hook and this test guard the same boundary from two places.
+
+    If they drift, the hook could start permitting a tool these tests reject,
+    or vice versa -- and the one that is wrong would be silently trusted.
+    Parsed rather than imported so the test does not depend on the hook being
+    importable as a module.
+    """
+    hook = SRC.parent.parent / ".claude" / "hooks" / "check_tool_boundary.py"
+    if not hook.exists():
+        pytest.skip("hook not installed")
+
+    tree = ast.parse(hook.read_text(encoding="utf-8"))
+    allowed: set[str] | None = None
+    verbs: tuple[str, ...] | None = None
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if target.id == "ALLOWED" and isinstance(node.value, ast.Set):
+            allowed = {
+                e.value for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            }
+        if target.id == "WRITE_VERBS" and isinstance(node.value, ast.Tuple):
+            verbs = tuple(
+                e.value for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+
+    assert allowed == ALLOWED_TOOL_NAMES, (
+        "the hook's tool allowlist and this test's have drifted apart.\n"
+        f"  only in the hook: {sorted((allowed or set()) - ALLOWED_TOOL_NAMES)}\n"
+        f"  only in the test: {sorted(ALLOWED_TOOL_NAMES - (allowed or set()))}"
+    )
+    assert set(verbs or ()) == set(WRITE_VERBS), (
+        "the hook's write-verb list and this test's have drifted apart"
+    )
+
+
 def test_a_rejected_proposal_performs_no_writes(store, corpus):
     """Rejection must be inert. Nothing about the ticket may change."""
     from datetime import datetime

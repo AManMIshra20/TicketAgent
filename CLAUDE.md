@@ -68,13 +68,19 @@ due **2026-09-22**. Bias every open decision toward *demonstrable today*.
              own memory)            automatically)
 ```
 
-| Part | What it is | Where it lives here |
-|---|---|---|
-| CLAUDE.md | The rules. What is always true. | this file |
-| Skills | A prompt that worked, saved under a name. | `.claude/skills/` |
-| MCP | The plug. How the agent reaches a real system. | `.mcp.json` + config |
-| Subagents | A helper with its own memory, so the main agent stays light. | `.claude/agents/` |
-| Hooks | A check that runs on its own and can stop the agent. | `.claude/hooks/` |
+| Part | What it is | As a file | In the app |
+|---|---|---|---|
+| CLAUDE.md | The rules. What is always true. | this file | `prompts.py` |
+| Skills | A prompt that worked, saved under a name. | `.claude/skills/{triage,write-sop,clean-tickets}/SKILL.md` | `prompts.TRIAGE_SYSTEM`, `prompts.SOP_SYSTEM` |
+| Subagents | A helper with its own memory, so the main agent stays light. | `.claude/agents/reply-drafter.md` | `agent._draft_with_subagent` |
+| Hooks | A check that runs on its own and can stop the agent. | `.claude/hooks/check_tool_boundary.py` | `gate.py` |
+| MCP | The plug. How the agent reaches a real system. | *not connected — see `.claude/README.md`* | — |
+
+Each part exists twice: once for an agent working on this repository, once
+for the deployed application. `.claude/README.md` maps the pairs. **Change
+one and change the other in the same commit** — a skill file that disagrees
+with the system prompt is worse than no skill file, because it will be
+believed.
 
 The agent's memory is the folder, not the chat. Close the session and the
 conversation is gone; `CLAUDE.md`, `data/`, `docs/` and `.claude/skills/`
@@ -298,10 +304,6 @@ load-bearing signposts, not decoration.
   biggest gap and the cheapest to close.
 - The agent-driven cleaning pass over `tickets_raw.csv`. The defects are
   planted and asserted; the cleaning run is not implemented.
-- `.claude/skills/`, `.claude/agents/`, `.claude/hooks/` as files. The
-  patterns are implemented in Python (`prompts.py` holds what a skill would
-  hold, `agent.py` does the subagent split, `gate.py` does what a hook
-  would enforce) but not expressed in the workshop's file layout.
 - The GitHub adapter behind `TicketStore`. `github_tools.py` still talks to
   GitHub directly and is not wired in.
 - No MCP plug. Deliberate: the gate and the hook go in before the plug, and

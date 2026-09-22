@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/check_tool_boundary.py",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest:*)",
+      "Bash(python -m src.ticket_agent.seed:*)",
+      "Bash(python -m src.ticket_agent.main:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python .claude/hooks/check_tool_boundary.py)"
+    ]
+  }
+}
