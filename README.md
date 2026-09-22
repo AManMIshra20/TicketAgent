@@ -8,6 +8,9 @@ resolved it and drafts the missing procedure.
 
 **Nothing it produces reaches anyone until a person approves it.**
 
+**Live: https://ticketagent.onrender.com**  ·  Runs without an API key, so the link works on first click.
+The free tier sleeps after 15 minutes idle and takes about 30 seconds to wake.
+
 Built for the IIM Udaipur *Building with Agentic AI* capstone, in the
 five-part shape taught there: rules file, skills, subagents, hooks, plug.
 

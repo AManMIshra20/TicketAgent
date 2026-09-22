@@ -1,9 +1,11 @@
 # Deploy
 
-Target: a public URL your professor can open, that works on first click.
+**Deployed: https://ticketagent.onrender.com** — verified returning HTTP 200 on `/healthz`,
+`/queue`, `/tickets` and `/sops`, serving 53 tickets and 6 procedures in
+demo mode.
 
-The repo is already committed locally. Neither `gh` nor `docker` is installed
-on this machine, so these three steps are yours to run.
+Both steps below are done. They are kept as a record, and for the case where
+the service has to be rebuilt or moved to another host.
 
 ---
 

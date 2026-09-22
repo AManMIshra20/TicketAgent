@@ -42,7 +42,7 @@ GUTTER = 7 * mm
 COL_W = (PAGE_W - 2 * MARGIN - GUTTER) / 2
 
 GITHUB_URL = "https://github.com/AManMIshra20/TicketAgent"
-RENDER_URL = "<paste your Render URL here>"
+RENDER_URL = "https://ticketagent.onrender.com"
 
 body = ParagraphStyle(
     "body", fontName="Helvetica", fontSize=7.9, leading=10.4,
